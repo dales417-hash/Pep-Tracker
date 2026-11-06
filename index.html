@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peptide & Protocol Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0ea5e9',
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-50 dark:bg-darkBg text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans pb-20">
+
+    <!-- Top App Bar -->
+    <header class="bg-white dark:bg-cardBg shadow-sm sticky top-0 z-40 px-4 py-3 flex justify-between items-center border-b border-slate-200 dark:border-slate-800">
+        <div class="flex items-center space-x-2">
+            <div class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-lg">
+                <i class="fa-solid fa-syringe"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight">PeptideTracker</h1>
+                <p id="syncStatus" class="text-xs text-slate-400">Local Storage Active</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="triggerSync()" class="p-2 text-slate-500 hover:text-primary transition" title="Sync with Google Sheets">
+                <i id="syncIcon" class="fa-solid fa-cloud-arrow-up text-lg"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-md w-full mx-auto p-4">
+        
+        <!-- DASHBOARD TAB -->
+        <div id="tab-dashboard" class="tab-content space-y-4">
+            <div class="bg-gradient-to-br from-primary to-cyan-600 rounded-2xl p-5 text-white shadow-lg">
+                <p class="text-cyan-100 text-sm font-medium">Active Protocol Focus</p>
+                <h2 id="activePeptideName" class="text-2xl font-bold mt-1">No Active Peptide</h2>
+                <p id="activePeptideDose" class="text-cyan-50 text-sm mt-0.5">Log your first injection to begin tracking.</p>
+                <div class="mt-4 pt-4 border-t border-white/20 flex justify-between text-xs">
+                    <div>
+                        <span class="block opacity-80">Total Logs</span>
+                        <span id="totalLogsCount" class="text-lg font-bold">0</span>
+                    </div>
+                    <div>
+                        <span class="block opacity-80">Inventory Items</span>
+                        <span id="totalInventoryCount" class="text-lg font-bold">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-cardBg rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800">
+                <h3 class="font-bold text-base mb-3 flex items-center justify-between">
+                    <span>Recent Injections</span>
+                    <button onclick="switchTab('logs')" class="text-xs text-primary font-semibold">View All</button>
+                </h3>
+                <div id="recentLogsList" class="space-y-2">
+                    <p class="text-sm text-slate-400 text-center py-4">No injection logs recorded yet.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOGS TAB -->
+        <div id="tab-logs" class="tab-content hidden space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold">Injection History</h2>
+                <button onclick="openLogModal()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm hover:bg-cyan-600 transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Log Dose
+                </button>
+            </div>
+            <div id="fullLogsList" class="space-y-3"></div>
+        </div>
+
+        <!-- INVENTORY TAB -->
+        <div id="tab-inventory" class="tab-content hidden space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold">Peptide Inventory</h2>
+                <button onclick="openInventoryModal()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm hover:bg-cyan-600 transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Add Vial
+                </button>
+            </div>
+            <div id="inventoryList" class="space-y-3"></div>
+        </div>
+
+        <!-- SETTINGS TAB -->
+        <div id="tab-settings" class="tab-content hidden space-y-4">
+            <h2 class="text-xl font-bold">Settings & Sync</h2>
+            
+            <div class="bg-white dark:bg-cardBg rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3">
+                <h3 class="font-bold text-sm text-primary uppercase tracking-wider">Google Sheets Integration</h3>
+                <p class="text-xs text-slate-400">Paste your deployed Google Apps Script Web App URL below to sync your logs and inventory directly to your spreadsheet.</p>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Web App URL</label>
+                    <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                </div>
+                <button onclick="saveScriptUrl()" class="w-full py-2.5 bg-slate-800 dark:bg-slate-700 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition">
+                    Save Web App URL
+                </button>
+            </div>
+
+            <div class="bg-white dark:bg-cardBg rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3">
+                <h3 class="font-bold text-sm text-primary uppercase tracking-wider">Data Management</h3>
+                <div class="flex space-x-2">
+                    <button onclick="exportData()" class="flex-1 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                        Export Backup
+                    </button>
+                    <button onclick="clearAllData()" class="flex-1 py-2.5 text-rose-500 border border-rose-200 dark:border-rose-900/50 rounded-xl text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-950/20 transition">
+                        Clear Data
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white dark:bg-cardBg border-t border-slate-200 dark:border-slate-800 flex justify-around py-2 z-40">
+        <button onclick="switchTab('dashboard')" class="nav-btn flex flex-col items-center text-primary flex-1 py-1" data-tab="dashboard">
+            <i class="fa-solid fa-chart-pie text-lg"></i>
+            <span class="text-[10px] mt-1 font-medium">Home</span>
+        </button>
+        <button onclick="switchTab('logs')" class="nav-btn flex flex-col items-center text-slate-400 flex-1 py-1" data-tab="logs">
+            <i class="fa-solid fa-syringe text-lg"></i>
+            <span class="text-[10px] mt-1 font-medium">Logs</span>
+        </button>
+        <button onclick="switchTab('inventory')" class="nav-btn flex flex-col items-center text-slate-400 flex-1 py-1" data-tab="inventory">
+            <i class="fa-solid fa-boxes-stacked text-lg"></i>
+            <span class="text-[10px] mt-1 font-medium">Inventory</span>
+        </button>
+        <button onclick="switchTab('settings')" class="nav-btn flex flex-col items-center text-slate-400 flex-1 py-1" data-tab="settings">
+            <i class="fa-solid fa-gear text-lg"></i>
+            <span class="text-[10px] mt-1 font-medium">Settings</span>
+        </button>
+    </nav>
+
+    <!-- Log Injection Modal -->
+    <div id="logModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white dark:bg-cardBg w-full max-w-md rounded-t-3xl sm:rounded-2xl p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold">Log Injection Dose</h3>
+                <button onclick="closeLogModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="logForm" onsubmit="saveInjection(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium mb-1">Peptide Name</label>
+                    <input type="text" id="logPeptide" required placeholder="e.g. BPC-157" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Dose Amount</label>
+                        <input type="number" step="any" id="logDose" required placeholder="250" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Unit</label>
+                        <select id="logUnit" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                            <option value="mcg">mcg</option>
+                            <option value="mg">mg</option>
+                            <option value="IU">IU</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Injection Site</label>
+                    <input type="text" id="logSite" placeholder="e.g. Left Subq Abdomen" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Date & Time</label>
+                    <input type="datetime-local" id="logDate" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Notes (Optional)</label>
+                    <textarea id="logNotes" rows="2" placeholder="Any side notes..." class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary"></textarea>
+                </div>
+                <button type="submit" class="w-full py-3 bg-primary text-white rounded-xl font-semibold shadow-sm hover:bg-cyan-600 transition">Save Log</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Inventory Modal -->
+    <div id="inventoryModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white dark:bg-cardBg w-full max-w-md rounded-t-3xl sm:rounded-2xl p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold">Add Peptide Vial</h3>
+                <button onclick="closeInventoryModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="inventoryForm" onsubmit="saveInventoryItem(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium mb-1">Peptide Name</label>
+                    <input type="text" id="invName" required placeholder="e.g. TB-500" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Total mg per Vial</label>
+                        <input type="number" step="any" id="invMg" required placeholder="5" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Quantity (Vials)</label>
+                        <input type="number" id="invQty" required value="1" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">BAC Water Added (mL)</label>
+                    <input type="number" step="any" id="invBac" placeholder="2" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Purchase Date</label>
+                    <input type="date" id="invDate" required class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-primary">
+                </div>
+                <button type="submit" class="w-full py-3 bg-primary text-white rounded-xl font-semibold shadow-sm hover:bg-cyan-600 transition">Save Vial</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let state = {
+            injections: JSON.parse(localStorage.getItem('pt_injections')) || [],
+            inventory: JSON.parse(localStorage.getItem('pt_inventory')) || [],
+            scriptUrl: localStorage.getItem('pt_script_url') || ''
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (state.scriptUrl) {
+                document.getElementById('scriptUrlInput').value = state.scriptUrl;
+                document.getElementById('syncStatus').innerText = 'Cloud Sync Ready';
+            }
+            renderAll();
+        });
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-primary');
+                btn.classList.add('text-slate-400');
+            });
+            document.querySelector(`[data-tab="${tabId}"]`).classList.add('text-primary');
+            document.querySelector(`[data-tab="${tabId}"]`).classList.remove('text-slate-400');
+        }
+
+        function openLogModal() {
+            document.getElementById('logDate').value = new Date().toISOString().slice(0, 16);
+            document.getElementById('logModal').classList.remove('hidden');
+        }
+        function closeLogModal() { document.getElementById('logModal').classList.add('hidden'); }
+
+        function openInventoryModal() {
+            document.getElementById('invDate').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('inventoryModal').classList.remove('hidden');
+        }
+        function closeInventoryModal() { document.getElementById('inventoryModal').classList.add('hidden'); }
+
+        function saveInjection(e) {
+            e.preventDefault();
+            const newItem = {
+                id: 'inj_' + Date.now(),
+                peptide: document.getElementById('logPeptide').value,
+                dose: document.getElementById('logDose').value,
+                unit: document.getElementById('logUnit').value,
+                site: document.getElementById('logSite').value,
+                date: document.getElementById('logDate').value,
+                notes: document.getElementById('logNotes').value
+            };
+            state.injections.unshift(newItem);
+            persistAndSync();
+            closeLogModal();
+            document.getElementById('logForm').reset();
+            renderAll();
+        }
+
+        function saveInventoryItem(e) {
+            e.preventDefault();
+            const newItem = {
+                id: 'inv_' + Date.now(),
+                name: document.getElementById('invName').value,
+                mg: document.getElementById('invMg').value,
+                qty: document.getElementById('invQty').value,
+                bac: document.getElementById('invBac').value,
+                date: document.getElementById('invDate').value
+            };
+            state.inventory.unshift(newItem);
+            persistAndSync();
+            closeInventoryModal();
+            document.getElementById('inventoryForm').reset();
+            renderAll();
+        }
+
+        function persistAndSync() {
+            localStorage.setItem('pt_injections', JSON.stringify(state.injections));
+            localStorage.setItem('pt_inventory', JSON.stringify(state.inventory));
+            if (state.scriptUrl) {
+                triggerSync(true);
+            }
+        }
+
+        function saveScriptUrl() {
+            const url = document.getElementById('scriptUrlInput').value.trim();
+            state.scriptUrl = url;
+            localStorage.setItem('pt_script_url', url);
+            document.getElementById('syncStatus').innerText = url ? 'Cloud Sync Configured' : 'Local Storage Active';
+            alert('Web App URL saved successfully!');
+            if (url) triggerSync();
+        }
+
+        function triggerSync(silent = false) {
+            if (!state.scriptUrl) {
+                if (!silent) alert('Please enter and save your Google Apps Script Web App URL in Settings first.');
+                return;
+            }
+            const icon = document.getElementById('syncIcon');
+            icon.classList.add('fa-spin');
+            document.getElementById('syncStatus').innerText = 'Syncing...';
+
+            fetch(state.scriptUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    injections: state.injections,
+                    inventory: state.inventory
+                })
+            }).then(() => {
+                icon.classList.remove('fa-spin');
+                document.getElementById('syncStatus').innerText = 'Synced to Google Sheet';
+                if (!silent) alert('Sync completed successfully!');
+            }).catch(err => {
+                icon.classList.remove('fa-spin');
+                document.getElementById('syncStatus').innerText = 'Sync Error';
+                if (!silent) alert('Sync failed: ' + err);
+            });
+        }
+
+        function renderAll() {
+            document.getElementById('totalLogsCount').innerText = state.injections.length;
+            document.getElementById('totalInventoryCount').innerText = state.inventory.length;
+
+            if (state.injections.length > 0) {
+                const latest = state.injections[0];
+                document.getElementById('activePeptideName').innerText = latest.peptide;
+                document.getElementById('activePeptideDose',).innerText = `Last Dose: ${latest.dose} ${latest.unit} (${latest.site || 'Site not specified'})`;
+            }
+
+            // Recent logs
+            const recentHtml = state.injections.slice(0, 3).map(item => `
+                <div class="flex justify-between items-center p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-sm">
+                    <div>
+                        <span class="font-bold">${item.peptide}</span>
+                        <span class="text-xs text-slate-400 block">${item.dose} ${item.unit} • ${item.site || 'General'}</span>
+                    </div>
+                    <span class="text-xs text-slate-400">${new Date(item.date).toLocaleDateString()}</span>
+                </div>
+            `).join('') || '<p class="text-sm text-slate-400 text-center py-4">No injection logs recorded yet.</p>';
+            document.getElementById('recentLogsList').innerHTML = recentHtml;
+
+            // Full logs
+            const fullHtml = state.injections.map(item => `
+                <div class="bg-white dark:bg-cardBg p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm">
+                    <div>
+                        <h4 class="font-bold text-sm">${item.peptide} - ${item.dose} ${item.unit}</h4>
+                        <p class="text-xs text-slate-400 mt-0.5"><i class="fa-solid fa-location-dot mr-1"></i>${item.site || 'N/A'} • ${new Date(item.date).toLocaleString()}</p>
+                        ${item.notes ? `<p class="text-xs text-slate-500 mt-1 italic">"${item.notes}"</p>` : ''}
+                    </div>
+                    <button onclick="deleteInjection('${item.id}')" class="text-slate-400 hover:text-rose-500 p-2"><i class="fa-solid fa-trash-can text-sm"></i></button>
+                </div>
+            `).join('') || '<p class="text-sm text-slate-400 text-center py-6">No logs yet. Tap Log Dose to start.</p>';
+            document.getElementById('fullLogsList').innerHTML = fullHtml;
+
+            // Inventory
+            const invHtml = state.inventory.map(item => `
+                <div class="bg-white dark:bg-cardBg p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm">
+                    <div>
+                        <h4 class="font-bold text-sm">${item.name} (${item.mg} mg)</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Qty: ${item.qty} vial(s) • BAC: ${item.bac || '0'} mL</p>
+                    </div>
+                    <button onclick="deleteInventory('${item.id}')" class="text-slate-400 hover:text-rose-500 p-2"><i class="fa-solid fa-trash-can text-sm"></i></button>
+                </div>
+            `).join('') || '<p class="text-sm text-slate-400 text-center py-6">No inventory vials added yet.</p>';
+            document.getElementById('inventoryList').innerHTML = invHtml;
+        }
+
+        function deleteInjection(id) {
+            state.injections = state.injections.filter(i => i.id !== id);
+            persistAndSync();
+            renderAll();
+        }
+
+        function deleteInventory(id) {
+            state.inventory = state.inventory.filter(i => i.id !== id);
+            persistAndSync();
+            renderAll();
+        }
+
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", "peptide_tracker_backup.json");
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+        }
+
+        function clearAllData() {
+            if (confirm('Are you sure you want to clear all logs and inventory?')) {
+                state.injections = [];
+                state.inventory = [];
+                persistAndSync();
+                renderAll();
+            }
+        }
+    </script>
+</body>
+</html>
